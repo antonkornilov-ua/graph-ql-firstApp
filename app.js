@@ -1,5 +1,6 @@
 import express from 'express';
 import { users, posts, likes } from './fakedb.js';
+import { v4 as uuid } from 'uuid';
 import { createHandler } from 'graphql-http/lib/use/express';
 import {
     GraphQLSchema,
@@ -20,7 +21,7 @@ const app = express();
  *   hello: String
  * }
  */
-
+// User types
 const UserType = new GraphQLObjectType({
     name: 'UserType',
     fields: {
@@ -37,7 +38,26 @@ const UserInputType = new GraphQLInputObjectType({
         email: { type: GraphQLString },
     },
 });
+// Post types
+const PostType = new GraphQLObjectType({
+    name: 'PostType',
+    fields: {
+        id: { type: new GraphQLNonNull(GraphQLID) },
+        userId: { type: new GraphQLNonNull(GraphQLID) },
+        title: { type: new GraphQLNonNull(GraphQLString) },
+        body: { type: new GraphQLNonNull(GraphQLString) },
+    },
+});
+const PostCreateType = new GraphQLInputObjectType({
+    name: 'PostCreateType',
+    fields: {
+        userId: { type: new GraphQLNonNull(GraphQLID) },
+        title: { type: new GraphQLNonNull(GraphQLString) },
+        body: { type: new GraphQLNonNull(GraphQLString) },
+    },
+});
 
+// Schema
 const schema = new GraphQLSchema({
     query: new GraphQLObjectType({
         name: 'Query',
@@ -52,6 +72,17 @@ const schema = new GraphQLSchema({
                     id: { type: new GraphQLNonNull(GraphQLID) },
                 },
                 resolve: (parent, args) => users.find((item) => item.id === args.id),
+            },
+            posts: {
+                type: new GraphQLList(PostType),
+                resolve: () => posts,
+            },
+            post: {
+                type: PostType,
+                args: {
+                    id: { type: new GraphQLNonNull(GraphQLID) },
+                },
+                resolve: (parent, args) => posts.find((item) => item.id === args.id),
             },
         },
     }),
@@ -70,6 +101,30 @@ const schema = new GraphQLSchema({
                     if (args.userData.name) user.name = args.userData.name;
                     if (args.userData.email) user.email = args.userData.email;
                     return user;
+                },
+            },
+            deletePost: {
+                type: PostType,
+                args: {
+                    id: { type: new GraphQLNonNull(GraphQLID) },
+                },
+                resolve: (parent, args) => {
+                    const index = posts.findIndex((item) => item.id === args.id);
+                    if (index === -1) return null;
+                    const postToDelete = posts[index];
+                    posts.splice(index, 1);
+                    return postToDelete;
+                },
+            },
+            createPost: {
+                type: PostType,
+                args: {
+                    postData: { type: new GraphQLNonNull(PostCreateType) },
+                },
+                resolve: (parent, args) => {
+                    args.postData.id = uuid();
+                    posts.push(args.postData);
+                    return args.postData;
                 },
             },
         },
