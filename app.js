@@ -1,10 +1,17 @@
 import express from 'express';
-import { users } from './fakedb.js';
+import { users, posts, likes } from './fakedb.js';
 import { createHandler } from 'graphql-http/lib/use/express';
+import {
+    GraphQLSchema,
+    GraphQLObjectType,
+    GraphQLString,
+    GraphQLList,
+    GraphQLNonNull,
+    GraphQLID,
+    GraphQLInputObjectType,
+} from 'graphql';
 
 const app = express();
-
-import { GraphQLSchema, GraphQLObjectType, GraphQLString, GraphQLList } from 'graphql';
 
 /**
  * Construct a GraphQL schema and define the necessary resolvers.
@@ -13,20 +20,38 @@ import { GraphQLSchema, GraphQLObjectType, GraphQLString, GraphQLList } from 'gr
  *   hello: String
  * }
  */
+
+const UserType = new GraphQLObjectType({
+    name: 'UserType',
+    fields: {
+        id: { type: new GraphQLNonNull(GraphQLID) },
+        name: { type: new GraphQLNonNull(GraphQLString) },
+        email: { type: new GraphQLNonNull(GraphQLString) },
+    },
+});
+
+const UserInputType = new GraphQLInputObjectType({
+    name: 'UserInputType',
+    fields: {
+        name: { type: GraphQLString },
+        email: { type: GraphQLString },
+    },
+});
+
 const schema = new GraphQLSchema({
     query: new GraphQLObjectType({
         name: 'Query',
         fields: {
             users: {
-                type: new GraphQLList(GraphQLString),
+                type: new GraphQLList(UserType),
                 resolve: () => users,
             },
             user: {
-                type: GraphQLString,
+                type: UserType,
                 args: {
-                    name: { type: GraphQLString },
+                    id: { type: new GraphQLNonNull(GraphQLID) },
                 },
-                resolve: (parent, args) => users.find((item) => item === args.name),
+                resolve: (parent, args) => users.find((item) => item.id === args.id),
             },
         },
     }),
@@ -34,17 +59,18 @@ const schema = new GraphQLSchema({
         name: 'Mutation',
         fields: {
             updateUser: {
-                type: GraphQLString,
+                type: UserType,
                 args: {
-                    oldName: { type: GraphQLString },
-                    newName: { type: GraphQLString },
+                    id: { type: new GraphQLNonNull(GraphQLID) },
+                    userData: { type: UserInputType },
                 },
                 resolve: (parent, args) => {
-                    const index = users.indexOf(args.oldName);
-                    if (index === -1) return null;
-                    users[ index ] = args.newName;
-                    return args.newName
-                }
+                    const user = users.find((item) => item.id === args.id);
+                    if (!user) return null;
+                    if (args.userData.name) user.name = args.userData.name;
+                    if (args.userData.email) user.email = args.userData.email;
+                    return user;
+                },
             },
         },
     }),
